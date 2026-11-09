@@ -11,3 +11,9 @@ docs/specs/
 docs/validation-report.md
 docs/publishing.md
 docs/store-listing.md
+
+# Native Mac build outputs and private local validation
+build/macos/
+**/.build/
+.swiftpm/
+docs/macos/validation-report.md
