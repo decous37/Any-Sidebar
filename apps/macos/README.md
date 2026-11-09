@@ -36,3 +36,7 @@ npm run package:mac
 [使用与权限说明](../../docs/macos/user-guide.md) · [阅读质量样例](../../docs/macos/reading-evaluation.md)
 
 仅有截图时可以直接发送，无需输入文字；此时默认解读图片内容。Shift+A 会占用输入大写 A 的组合，可以在设置修改或清除。
+
+## 本机签名
+
+默认构建使用临时签名。开发者明确同意后，可运行 `node scripts/macos/setup-signing.mjs` 创建专用本机身份；私钥保存在用户钥匙串，工程只读取本机保存的证书指纹。后续构建自动沿用该身份，配置存在而签名不可用时会报错，不静默改回临时签名。此操作只配置用户域的代码签名信任，不改变系统软件来源设置，也不等于 Developer ID 签名或公证。

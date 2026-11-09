@@ -10,10 +10,10 @@ export interface TaskRecord {id:ID;title:string;revision:number;activeOperationI
 export interface Turn {id:ID;requestId:ID;prompt:string;externalQuotes:ExternalQuote[];assistantQuote?:AssistantQuote;images:ImageView[];answer:string;reasoning:string;status:string;error?:Fault;canRegenerate:boolean}
 export interface TaskView {task:TaskRecord;draft:Draft;turns:Turn[];nextCursor?:number}
 export interface Shortcut {keyCode:number;modifiers:('command'|'control'|'option'|'shift')[]}
-export interface Preferences {revision:number;modelId:string;thinkingEnabled:boolean;reasoningEffort:'low'|'high'|'max';theme:'system'|'light'|'dark';fontSize:12|13|14|16;quoteMode:'accumulate'|'latest';autoSelectionEnabled:boolean;captureShortcut?:Shortcut;disclosureVersion?:string;companionVisible:boolean}
+export interface Preferences {revision:number;modelId:string;thinkingEnabled:boolean;reasoningEffort:'low'|'high'|'max';theme:'system'|'light'|'dark';fontSize:12|13|14|16;quoteMode:'accumulate'|'latest';autoSelectionEnabled:boolean;captureShortcut?:Shortcut;panelShortcut?:Shortcut;disclosureVersion?:string;companionVisible:boolean}
 export interface Model {modelId:string;label:string;providerId:string;inputModalities:string[];reasoningEfforts:string[]}
 export interface Runtime {bootId:ID;sequence:number;activeTaskId?:ID;tasks:TaskRecord[];currentTask?:TaskView;preferences:Preferences;models:Model[]}
-export interface Bootstrap {systemRevision?:number;runtime:Runtime;permissions:{accessibility:boolean;screen:boolean};credential:{state:'known';configured:boolean}|{state:'unknown';error:Fault};shortcutState:string;recordingOperationId?:ID|null;recordedShortcut?:Shortcut|null;captureOperationId?:ID|null;captureError?:Fault|null;selectionStatus:string;appFault?:Fault|null}
+export interface Bootstrap {systemRevision?:number;runtime:Runtime;permissions:{accessibility:boolean;screen:boolean};credential:{state:'known';configured:boolean}|{state:'unknown';error:Fault};shortcutState:string;panelShortcutState?:string;recordingKind?:'capture'|'panel';recordingOperationId?:ID|null;recordedShortcut?:Shortcut|null;captureOperationId?:ID|null;captureError?:Fault|null;selectionStatus:string;appFault?:Fault|null}
 export interface NativeEvent {type:string;bootId:ID;sequence:number}
 export interface Operation {id:ID;command:string;state:'pending'|'succeeded'|'failed';resultId?:ID;error?:Fault}
 export interface Envelope {ok:boolean;messageId?:ID;data?:unknown;error?:Fault}

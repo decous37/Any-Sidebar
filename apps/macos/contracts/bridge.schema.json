@@ -109,7 +109,9 @@
     },
     "startShortcutRecording": {
       "required": {},
-      "optional": {}
+      "optional": {
+        "kind": "capture|panel"
+      }
     },
     "cancelShortcutRecording": {
       "required": {

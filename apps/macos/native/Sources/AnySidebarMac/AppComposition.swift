@@ -12,7 +12,8 @@ import DeepSeekTransport
     let vault:KeychainVault
     let selection=AccessibilitySelectionService()
     let screen=ScreenCaptureService()
-    let shortcut=ShortcutService()
+    let shortcut=ShortcutService(id:1)
+    let panelShortcut=ShortcutService(id:2)
     let companion=CompanionController()
     var panel:ConversationPanelController!
     var captureJob:Task<Void,Never>?
@@ -21,6 +22,7 @@ import DeepSeekTransport
     var runtimeError:AppFault?
     var systemRevision=0
     var credentialCache:JSONValue?
+    var recordingKind="capture"
     var recordingOperation:ID?
     var recordedShortcut:ShortcutBinding?
     var selectionStatus="disabled"
@@ -56,7 +58,12 @@ import DeepSeekTransport
         }}
         selection.status={[weak self] value in Task{@MainActor in self?.selectionStatus=value}}
         shortcut.triggered={[weak self] in Task{await self?.captureCurrent()}}
-        shortcut.recorded={[weak self] id,binding in guard let self,self.recordingOperation==id else{return};self.recordedShortcut=binding;self.recordingOperation=nil;self.notifySystem("shortcut-recording-changed")}
+        panelShortcut.triggered={[weak self] in guard let self,self.captureOperation==nil else{return};self.panel.toggle(near:self.companion.window.frame)}
+        let onRecorded:(ID,ShortcutBinding?)->Void = {[weak self] id,binding in
+            guard let self,self.recordingOperation==id else{return}
+            self.recordedShortcut=binding;self.recordingOperation=nil;self.shortcut.resume();self.panelShortcut.resume();self.notifySystem("shortcut-recording-changed")
+        }
+        shortcut.recorded=onRecorded;panelShortcut.recorded=onRecorded
         workspaceObserver=NSWorkspace.shared.notificationCenter.addObserver(forName:NSWorkspace.didActivateApplicationNotification,object:nil,queue:.main){[weak self] notification in
             guard let app=notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else{return}
             Task{@MainActor in self?.selection.activate(app);await self?.refresh()}
@@ -64,7 +71,7 @@ import DeepSeekTransport
         activationObserver=NotificationCenter.default.addObserver(forName:NSApplication.didBecomeActiveNotification,object:nil,queue:.main){[weak self] _ in Task{@MainActor in self?.permissions.afterUserAction();await self?.refresh()}}
         windowObserver=NotificationCenter.default.addObserver(forName:NSWindow.didBecomeKeyNotification,object:panel.panel,queue:.main){[weak self] _ in Task{@MainActor in self?.permissions.afterUserAction();await self?.refresh()}}
         mouseMonitor=NSEvent.addGlobalMonitorForEvents(matching:.leftMouseUp){[weak self] _ in Task{@MainActor in self?.selection.scheduleRead()}}
-        Task {let p=await runtime.preferences();shortcut.restore(p.captureShortcut);companion.show(p.companionVisible);await refresh();panel.show(near:companion.window.frame);try? await runtime.garbageCollect()}
+        Task {let p=await runtime.preferences();shortcut.restore(p.captureShortcut);panelShortcut.restore(p.panelShortcut);companion.show(p.companionVisible);await refresh();panel.show(near:companion.window.frame);try? await runtime.garbageCollect()}
     }
     func refresh() async {
         let p=await runtime.preferences(),route=await runtime.route(),permissionState=permissions.check()
@@ -81,7 +88,7 @@ import DeepSeekTransport
         let view=try await runtime.view()
         let permissionState=permissions.check()
         // No await between ephemeral state and its revision: earlier replies cannot replace a later candidate.
-        return .object(["runtime":try .encode(view),"permissions":try .encode(permissionState),"systemRevision":.number(Double(systemRevision)),"credential":credentialCache!,"shortcutState":.string(shortcut.state),"recordingOperationId":recordingOperation.map(JSONValue.string) ?? .null,"recordedShortcut":try .encode(recordedShortcut),"captureOperationId":captureOperation.map(JSONValue.string) ?? .null,"captureError":try .encode(captureError),"selectionStatus":.string(selectionStatus),"appFault":try .encode(runtimeError)])
+        return .object(["runtime":try .encode(view),"permissions":try .encode(permissionState),"systemRevision":.number(Double(systemRevision)),"credential":credentialCache!,"shortcutState":.string(shortcut.state),"panelShortcutState":.string(panelShortcut.state),"recordingKind":.string(recordingKind),"recordingOperationId":recordingOperation.map(JSONValue.string) ?? .null,"recordedShortcut":try .encode(recordedShortcut),"captureOperationId":captureOperation.map(JSONValue.string) ?? .null,"captureError":try .encode(captureError),"selectionStatus":.string(selectionStatus),"appFault":try .encode(runtimeError)])
     }
     func captureCurrent() async {
         if let operation=captureOperation {cancelCapture(operation);return}
@@ -150,11 +157,13 @@ import DeepSeekTransport
             case "restoreSubmission":try await runtime.restoreSubmission(taskId:str("taskId"),requestId:str("requestId"),expected:int("expectedDraftRevision"))
             case "savePreferences":
                 let patch=a["patch"]!.object!
-                if let raw=patch["captureShortcut"] {
+                if let raw=patch["captureShortcut"] ?? patch["panelShortcut"] {
                     guard patch.count==1 else{throw AppFault("INVALID_ARGUMENT","请单独设置快捷键。")}
                     let binding=raw == .null ? nil:try raw.decode(ShortcutBinding.self)
                     guard int("expectedRevision") == (await runtime.preferences()).revision else{throw AppFault("REVISION_CONFLICT","设置已更新，请重试。")}
-                    try await shortcut.replace(binding){try await self.runtime.setShortcut(binding)};recordedShortcut=nil;notifySystem("shortcut-recording-changed")
+                    let kind=patch["panelShortcut"] != nil ? "panel":"capture"
+                    let service=kind=="panel" ? panelShortcut:shortcut
+                    try await service.replace(binding){try await self.runtime.setShortcut(binding,kind:kind)};recordedShortcut=nil;notifySystem("shortcut-recording-changed")
                 }else{try await runtime.savePreferences(expected:int("expectedRevision"),patch:patch)}
             case "setKey":try await vault.replace(str("key"));credentialCache = .object(["state":.string("known"),"configured":.bool(true)]);notifySystem("credential-changed")
             case "clearKey":try await vault.clear();credentialCache = .object(["state":.string("known"),"configured":.bool(false)]);notifySystem("credential-changed")
@@ -163,8 +172,12 @@ import DeepSeekTransport
             case "requestPermission":PermissionService.request(str("kind"));permissions.afterUserAction();await refresh()
             case "startCapture":try await startCapture(taskId:str("taskId"),mode:str("mode"),operationId:op)
             case "cancelCapture":cancelCapture(str("captureOperationId"))
-            case "startShortcutRecording":panel.show(near:companion.window.frame);panel.panel.makeFirstResponder(panel.web);recordingOperation=op;recordedShortcut=nil;shortcut.startRecording(id:op);notifySystem("shortcut-recording-changed")
-            case "cancelShortcutRecording":if recordingOperation==str("recordingOperationId"){shortcut.cancelRecording();recordingOperation=nil;notifySystem("shortcut-recording-changed")}
+            case "startShortcutRecording":
+                shortcut.cancelRecording();panelShortcut.cancelRecording();shortcut.suspend();panelShortcut.suspend()
+                panel.show(near:companion.window.frame);panel.panel.makeFirstResponder(panel.web)
+                recordingKind=a["kind"]?.string ?? "capture";recordingOperation=op;recordedShortcut=nil
+                (recordingKind=="panel" ? panelShortcut:shortcut).startRecording(id:op);notifySystem("shortcut-recording-changed")
+            case "cancelShortcutRecording":if recordingOperation==str("recordingOperationId"){shortcut.cancelRecording();panelShortcut.cancelRecording();shortcut.resume();panelShortcut.resume();recordingOperation=nil;notifySystem("shortcut-recording-changed")}
             case "deleteTask":try await runtime.deleteTask(str("taskId"),expected:int("expectedRevision"))
             case "clearAllTasks":try await runtime.clearAllTasks()
             case "setCompanionVisible":let visible=a["visible"]!.bool!;try await runtime.companionVisible(visible);companion.show(visible)
@@ -179,5 +192,5 @@ import DeepSeekTransport
             throw fault
         }
     }
-    func shutdown() async {permissions.stop();captureJob?.cancel();screen.cancel();shortcut.stop();selection.configure(enabled:false,taskId:nil,epoch:0);if let mouseMonitor{NSEvent.removeMonitor(mouseMonitor)};await runtime.shutdown()}
+    func shutdown() async {permissions.stop();captureJob?.cancel();screen.cancel();shortcut.stop();panelShortcut.stop();selection.configure(enabled:false,taskId:nil,epoch:0);if let mouseMonitor{NSEvent.removeMonitor(mouseMonitor)};await runtime.shutdown()}
 }

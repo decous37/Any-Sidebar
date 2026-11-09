@@ -22,6 +22,10 @@ public actor ReadingRuntime {
             if loaded.preferences.captureShortcut == nil {loaded.preferences.captureShortcut=ShortcutBinding(keyCode:0,modifiers:["shift"])}
             loaded.preferences.shortcutDefaultVersion=1
         }
+        if loaded.preferences.panelShortcutDefaultVersion == nil {
+            loaded.preferences.panelShortcut=ShortcutBinding(keyCode:1,modifiers:["shift"])
+            loaded.preferences.panelShortcutDefaultVersion=1
+        }
         for (id,var g) in loaded.generations where g.active {
             g.status="interrupted";g.error=AppFault("NETWORK_ERROR","上次运行意外中断，未自动重发。",retryable:true);loaded.generations[id]=g
             if let restore=g.restoresRequestId { loaded.turns[g.turnId]?.displayedRequestId=restore }
@@ -128,7 +132,7 @@ public actor ReadingRuntime {
         }
         p.revision += 1;p.updatedAt=now();var next=state;next.preferences=p;try commit(next,event:"preferences-changed")
     }
-    public func setShortcut(_ binding: ShortcutBinding?) throws {var next=state;next.preferences.captureShortcut=binding;next.preferences.revision += 1;try commit(next,event:"preferences-changed")}
+    public func setShortcut(_ binding: ShortcutBinding?,kind:String="capture") throws {var next=state;if kind=="panel"{next.preferences.panelShortcut=binding}else{next.preferences.captureShortcut=binding};next.preferences.revision += 1;try commit(next,event:"preferences-changed")}
     public func acceptDisclosure() throws {var next=state;next.preferences.disclosureVersion="v1";next.preferences.revision += 1;try commit(next,event:"preferences-changed")}
     public func enableSelection(_ enabled: Bool, expected: Int) throws {
         try checkRevision(expected,state.preferences.revision)

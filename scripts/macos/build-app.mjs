@@ -1,6 +1,7 @@
 import {spawnSync} from 'node:child_process';
 import {mkdir,cp,rm,readFile,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
+import {signingIdentity} from './signing.mjs';
 const run=(cmd,args)=>{const r=spawnSync(cmd,args,{stdio:'inherit'});if(r.status!==0)process.exit(r.status??1);};
 run(process.execPath,['scripts/macos/build-web.mjs']);
 run(process.execPath,['scripts/macos/build-icons.mjs']);
@@ -18,6 +19,7 @@ await cp('LICENSE',`${app}/Contents/Resources/LICENSE`);
 await cp('THIRD_PARTY_NOTICES.txt',`${app}/Contents/Resources/THIRD_PARTY_NOTICES.txt`);
 const meta=JSON.parse(await readFile('apps/macos/product.json','utf8'));await writeFile(`${app}/Contents/Resources/product.json`,JSON.stringify(meta,null,2));
 // Local development identity only; public distribution still needs Developer ID and notarization.
-run('codesign',['--force','--sign','-',app]);
+const identity=await signingIdentity();
+run('codesign',['--force','--sign',identity??'-',app]);
 run('codesign',['--verify','--deep','--strict',app]);
 console.log(`已构建本机开发包：${app}`);

@@ -40,10 +40,14 @@ actor FakeTransport:ModelTransport {
     @Test func defaultShortcutAndExplicitClearSurviveRestart() async throws {
         let(r,t,repo)=try make()
         #expect(await r.preferences().captureShortcut==ShortcutBinding(keyCode:0,modifiers:["shift"]))
+        #expect(await r.preferences().panelShortcut==ShortcutBinding(keyCode:1,modifiers:["shift"]))
+        try await r.setShortcut(nil,kind:"panel")
+        #expect(await r.preferences().captureShortcut==ShortcutBinding(keyCode:0,modifiers:["shift"]))
         try await r.setShortcut(nil)
         let root=URL(fileURLWithPath:ProcessInfo.processInfo.environment["ANY_SIDEBAR_CONTRACTS"]!)
         let reopened=try ReadingRuntime(repository:repo,assets:MemoryAssets(bytes:Data()),transport:t,catalog:ModelCatalog(data:Data(contentsOf:root.appendingPathComponent("model-capabilities.json"))),prompt:"角色")
         #expect(await reopened.preferences().captureShortcut==nil)
+        #expect(await reopened.preferences().panelShortcut==nil)
     }
     @Test func imageOnlySubmissionIsAcceptedWithDefaultReadingInstruction() async throws {
         let(r,t,_)=try make();let initial=try await r.view(),id=initial.currentTask!.task.id,imageID=newID()
