@@ -39,6 +39,7 @@ actor FakeTransport:ModelTransport {
     func prompt(_ runtime:ReadingRuntime,_ text:String="问题") async throws -> (ID,Int,Int){let v=try await runtime.view(),t=v.currentTask!;try await runtime.changeDraft(taskId:t.task.id,expected:t.draft.revision,change:["kind":.string("prompt"),"text":.string(text)]);return(t.task.id,t.draft.revision+1,v.preferences.revision)}
     @Test func defaultShortcutAndExplicitClearSurviveRestart() async throws {
         let(r,t,repo)=try make()
+        #expect(await r.preferences().quoteMode=="latest")
         #expect(await r.preferences().captureShortcut==ShortcutBinding(keyCode:0,modifiers:["command","shift"]))
         #expect(await r.preferences().panelShortcut==ShortcutBinding(keyCode:1,modifiers:["command","shift"]))
         try await r.setShortcut(nil,kind:"panel")
