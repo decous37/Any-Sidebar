@@ -18,13 +18,19 @@ public actor ReadingRuntime {
     public init(repository: any ReadingRepository, assets: any AttachmentStore, transport: any ModelTransport, catalog: ModelCatalog, prompt: String, changed: @escaping @Sendable (String) -> Void = {_ in}) throws {
         self.repository=repository;self.assets=assets;self.transport=transport;self.catalog=catalog;builder=ContextBuilder(prompt:prompt);self.changed=changed
         var loaded=try repository.load()
-        if loaded.preferences.shortcutDefaultVersion == nil {
-            if loaded.preferences.captureShortcut == nil {loaded.preferences.captureShortcut=ShortcutBinding(keyCode:0,modifiers:["shift"])}
-            loaded.preferences.shortcutDefaultVersion=1
+        if (loaded.preferences.shortcutDefaultVersion ?? 0) < 2 {
+            let binding=loaded.preferences.captureShortcut
+            if (binding == nil && loaded.preferences.shortcutDefaultVersion == nil) || binding == ShortcutBinding(keyCode:0,modifiers:["shift"]) {
+                loaded.preferences.captureShortcut=ShortcutBinding(keyCode:0,modifiers:["command","shift"])
+            }
+            loaded.preferences.shortcutDefaultVersion=2
         }
-        if loaded.preferences.panelShortcutDefaultVersion == nil {
-            loaded.preferences.panelShortcut=ShortcutBinding(keyCode:1,modifiers:["shift"])
-            loaded.preferences.panelShortcutDefaultVersion=1
+        if (loaded.preferences.panelShortcutDefaultVersion ?? 0) < 2 {
+            let binding=loaded.preferences.panelShortcut
+            if (binding == nil && loaded.preferences.panelShortcutDefaultVersion == nil) || binding == ShortcutBinding(keyCode:1,modifiers:["shift"]) {
+                loaded.preferences.panelShortcut=ShortcutBinding(keyCode:1,modifiers:["command","shift"])
+            }
+            loaded.preferences.panelShortcutDefaultVersion=2
         }
         for (id,var g) in loaded.generations where g.active {
             g.status="interrupted";g.error=AppFault("NETWORK_ERROR","上次运行意外中断，未自动重发。",retryable:true);loaded.generations[id]=g

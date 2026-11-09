@@ -39,15 +39,44 @@ actor FakeTransport:ModelTransport {
     func prompt(_ runtime:ReadingRuntime,_ text:String="问题") async throws -> (ID,Int,Int){let v=try await runtime.view(),t=v.currentTask!;try await runtime.changeDraft(taskId:t.task.id,expected:t.draft.revision,change:["kind":.string("prompt"),"text":.string(text)]);return(t.task.id,t.draft.revision+1,v.preferences.revision)}
     @Test func defaultShortcutAndExplicitClearSurviveRestart() async throws {
         let(r,t,repo)=try make()
-        #expect(await r.preferences().captureShortcut==ShortcutBinding(keyCode:0,modifiers:["shift"]))
-        #expect(await r.preferences().panelShortcut==ShortcutBinding(keyCode:1,modifiers:["shift"]))
+        #expect(await r.preferences().captureShortcut==ShortcutBinding(keyCode:0,modifiers:["command","shift"]))
+        #expect(await r.preferences().panelShortcut==ShortcutBinding(keyCode:1,modifiers:["command","shift"]))
         try await r.setShortcut(nil,kind:"panel")
-        #expect(await r.preferences().captureShortcut==ShortcutBinding(keyCode:0,modifiers:["shift"]))
+        #expect(await r.preferences().captureShortcut==ShortcutBinding(keyCode:0,modifiers:["command","shift"]))
         try await r.setShortcut(nil)
         let root=URL(fileURLWithPath:ProcessInfo.processInfo.environment["ANY_SIDEBAR_CONTRACTS"]!)
         let reopened=try ReadingRuntime(repository:repo,assets:MemoryAssets(bytes:Data()),transport:t,catalog:ModelCatalog(data:Data(contentsOf:root.appendingPathComponent("model-capabilities.json"))),prompt:"角色")
         #expect(await reopened.preferences().captureShortcut==nil)
         #expect(await reopened.preferences().panelShortcut==nil)
+    }
+    @Test func previousDefaultsUpgradeButCustomAndClearedBindingsRemain() async throws {
+        let root=URL(fileURLWithPath:ProcessInfo.processInfo.environment["ANY_SIDEBAR_CONTRACTS"]!)
+        let catalog=try ModelCatalog(data:Data(contentsOf:root.appendingPathComponent("model-capabilities.json")))
+        for scenario in 0..<3 {
+            let repo=MemoryRepository();var state=repo.load()
+            state.preferences.shortcutDefaultVersion=1;state.preferences.panelShortcutDefaultVersion=1
+            if scenario==0 {
+                state.preferences.captureShortcut=ShortcutBinding(keyCode:0,modifiers:["shift"])
+                state.preferences.panelShortcut=ShortcutBinding(keyCode:1,modifiers:["shift"])
+            }else if scenario==1 {
+                state.preferences.captureShortcut=ShortcutBinding(keyCode:40,modifiers:["control","shift"])
+                state.preferences.panelShortcut=nil
+            }else {
+                state.preferences.captureShortcut=nil;state.preferences.panelShortcut=nil
+                state.preferences.shortcutDefaultVersion=nil;state.preferences.panelShortcutDefaultVersion=nil
+            }
+            repo.save(state)
+            let runtime=try ReadingRuntime(repository:repo,assets:MemoryAssets(bytes:Data()),transport:FakeTransport(),catalog:catalog,prompt:"角色")
+            let preferences=await runtime.preferences()
+            #expect(preferences.shortcutDefaultVersion==2 && preferences.panelShortcutDefaultVersion==2)
+            if scenario==1 {
+                #expect(preferences.captureShortcut==state.preferences.captureShortcut)
+                #expect(preferences.panelShortcut==nil)
+            }else {
+                #expect(preferences.captureShortcut==ShortcutBinding(keyCode:0,modifiers:["command","shift"]))
+                #expect(preferences.panelShortcut==ShortcutBinding(keyCode:1,modifiers:["command","shift"]))
+            }
+        }
     }
     @Test func imageOnlySubmissionIsAcceptedWithDefaultReadingInstruction() async throws {
         let(r,t,_)=try make();let initial=try await r.view(),id=initial.currentTask!.task.id,imageID=newID()

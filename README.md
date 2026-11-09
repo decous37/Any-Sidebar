@@ -41,12 +41,12 @@ Any Sidebar 把对话放在阅读旁边：划选不懂的内容，带着引用�
 - 在「预览」等阅读软件中划词，引用自动进入当前会话，不自动发送。
 - 截图先加入草稿，可以配上问题，也可以只发送图片。
 - 手动新建、切换会话，同一会话可以讨论多份文档。
-- 默认 **Shift+A** 读屏／取消，**Shift+S** 展开／收起，两项均可修改。
+- 默认 **Command+Shift+A** 读屏／取消，**Command+Shift+S** 展开／收起，两项均可修改。
 - 右键小助手可读屏、打开设置、隐藏入口或退出。
 
 面向 **Apple Silicon、macOS 14+**。当前未完成 Developer ID 签名和 Apple 公证，先提供源码构建方式；不要把它当作已经完成公开分发验证的安装包。
 
-[Mac 安装与开发说明](apps/macos/README.md) · [Mac 使用指南](docs/macos/user-guide.md)
+Mac 版已拆分到独立仓库：[Any Sidebar for Mac](https://github.com/decous37/Any-Sidebar-for-Mac)。后续 Mac 开发与文档以新仓库为准。
 
 ## 资料会发到哪里
 

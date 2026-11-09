@@ -133,7 +133,7 @@ public struct ShortcutBinding: Codable, Sendable, Equatable {
 public struct PreferencesRecord: Codable, Sendable, Equatable {
     public var revision = 0; public var modelId = "deepseek-flash"; public var thinkingEnabled = true; public var reasoningEffort = "high"
     public var theme = "system"; public var fontSize = 13; public var quoteMode = "accumulate"; public var autoSelectionEnabled = false
-    public var captureShortcut: ShortcutBinding? = ShortcutBinding(keyCode:0,modifiers:["shift"]); public var shortcutDefaultVersion:Int? = 1; public var panelShortcut:ShortcutBinding? = ShortcutBinding(keyCode:1,modifiers:["shift"]); public var panelShortcutDefaultVersion:Int? = 1; public var disclosureVersion: String?; public var companionVisible = true; public var updatedAt = now()
+    public var captureShortcut: ShortcutBinding? = ShortcutBinding(keyCode:0,modifiers:["command","shift"]); public var shortcutDefaultVersion:Int? = 2; public var panelShortcut:ShortcutBinding? = ShortcutBinding(keyCode:1,modifiers:["command","shift"]); public var panelShortcutDefaultVersion:Int? = 2; public var disclosureVersion: String?; public var companionVisible = true; public var updatedAt = now()
     public init() {}
 }
 public struct OperationRecord: Codable, Sendable, Equatable {
