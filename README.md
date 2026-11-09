@@ -63,3 +63,11 @@ npm run package
 遇到问题或有建议，欢迎在 [Issues](https://github.com/decous37/any-sidebar/issues) 中提出。请不要在 Issue 中粘贴 API Key 或私人网页内容。
 
 项目采用 [MIT 许可证](LICENSE)；第三方组件的许可见 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt)。
+
+## Mac 版（本机开发中）
+
+同仓库正在开发面向本地阅读的桌面小助手：沿用现有聊天界面，接收选中文字，支持主动框选或窗口截图。按阅读任务保存对话，Key 存入系统钥匙串。
+
+首版面向 macOS 14+、Apple Silicon，使用 DeepSeek 官方 API。当前是本机开发包，尚未完成公开分发签名与公证。
+
+[查看 Mac 使用与开发说明](apps/macos/README.md)。Chrome 插件继续独立构建和使用。

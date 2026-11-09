@@ -20,8 +20,11 @@ private func hotkeyHandler(_ next:EventHandlerCallRef?,_ event:EventRef?,_ conte
         InstallEventHandler(GetApplicationEventTarget(),hotkeyHandler,1,&spec,Unmanaged.passUnretained(self).toOpaque(),&handler)
     }
     public func fire() {if recording==nil{triggered?()}}
+    public static func validate(_ binding:ShortcutBinding) throws {
+        guard (0...127).contains(binding.keyCode),!binding.modifiers.isEmpty,Set(binding.modifiers).isSubset(of:["command","option","control","shift"]) else{throw AppFault("INVALID_ARGUMENT","请选择有效的快捷键组合。")}
+    }
     private func register(_ binding:ShortcutBinding) throws -> EventHotKeyRef {
-        guard (0...127).contains(binding.keyCode),!binding.modifiers.isEmpty,Set(binding.modifiers).isSubset(of:["command","option","control","shift"]),binding.modifiers.contains("command") || binding.modifiers.contains("control") || binding.modifiers.contains("option") else{throw AppFault("INVALID_ARGUMENT","快捷键至少包含 Command、Option 或 Control。")}
+        try Self.validate(binding)
         var modifiers:UInt32=0
         for modifier in binding.modifiers {modifiers |= UInt32(modifier=="command" ? cmdKey:modifier=="option" ? optionKey:modifier=="control" ? controlKey:shiftKey)}
         var result:EventHotKeyRef?
@@ -29,7 +32,7 @@ private func hotkeyHandler(_ next:EventHandlerCallRef?,_ event:EventRef?,_ conte
         guard status==noErr,let result else{throw AppFault("SHORTCUT_CONFLICT","此快捷键已被占用，请选择其他组合。")};return result
     }
     public func replace(_ proposed:ShortcutBinding?,persist:() async throws -> Void) async throws {
-        if proposed==binding {try await persist();return}
+        if proposed==binding && (proposed==nil || hotkey != nil) {try await persist();return}
         let candidate=try proposed.map{try register($0)}
         do {try await persist()} catch {if let candidate{UnregisterEventHotKey(candidate)};throw error}
         if let hotkey{UnregisterEventHotKey(hotkey)};hotkey=candidate;binding=proposed;state=proposed==nil ? "unbound":"active"
@@ -39,7 +42,9 @@ private func hotkeyHandler(_ next:EventHandlerCallRef?,_ event:EventRef?,_ conte
         do{hotkey=try register(proposed);binding=proposed;state="active"}catch{state="conflict"}
     }
     public func startRecording(id:ID) {
-        cancelRecording();recording=id
+        cancelRecording()
+        if let hotkey {UnregisterEventHotKey(hotkey);self.hotkey=nil}
+        recording=id
         monitor=NSEvent.addLocalMonitorForEvents(matching:.keyDown){[weak self] event in
             guard let self,self.recording==id else{return event}
             if event.keyCode==53 {self.cancelRecording();self.recorded?(id,nil);return nil}
@@ -49,6 +54,12 @@ private func hotkeyHandler(_ next:EventHandlerCallRef?,_ event:EventRef?,_ conte
             let value=ShortcutBinding(keyCode:Int(event.keyCode),modifiers:mods);self.cancelRecording();self.recorded?(id,value);return nil
         }
     }
-    public func cancelRecording() {if let monitor{NSEvent.removeMonitor(monitor)};monitor=nil;recording=nil}
+    public func cancelRecording() {
+        if let monitor{NSEvent.removeMonitor(monitor)};monitor=nil
+        let wasRecording=recording != nil;recording=nil
+        if wasRecording,hotkey==nil,let binding {
+            do{hotkey=try register(binding);state="active"}catch{state="conflict"}
+        }
+    }
     public func stop() {cancelRecording();if let hotkey{UnregisterEventHotKey(hotkey)};hotkey=nil;if let handler{RemoveEventHandler(handler)};handler=nil}
 }

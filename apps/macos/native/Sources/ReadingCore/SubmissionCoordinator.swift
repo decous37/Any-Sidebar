@@ -6,7 +6,7 @@ extension ReadingRuntime {
         guard task.activeOperationId==nil else{throw AppFault("REQUEST_BUSY","此任务已有回答正在生成。")}
         guard let draft=state.drafts[taskId] else{throw AppFault.storage}
         try checkRevision(expectedDraft,draft.revision);try checkRevision(expectedPreferences,state.preferences.revision)
-        guard !draft.prompt.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty else{throw AppFault("INVALID_ARGUMENT","请先输入问题。")}
+        guard !draft.prompt.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || !draft.images.isEmpty else{throw AppFault("INVALID_ARGUMENT","请输入问题或添加截图。") }
         let sub=try FrozenSubmission(draft:draft,assets:state.assets),options=try catalog.resolve(state.preferences)
         let preparation=PreparationRecord(operationId:operationId,taskId:taskId,kind:"send",submission:sub,messages:builder.build(sub,state:state),options:options)
         var next=state;next.preparations[preparation.id]=preparation;next.tasks[taskId]?.activeOperationId=operationId;try commit(next)

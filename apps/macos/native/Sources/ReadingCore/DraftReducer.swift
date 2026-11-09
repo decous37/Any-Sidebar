@@ -1,5 +1,15 @@
 import Foundation
 public enum DraftReducer {
+    static func containsAnswer(_ answer:String,selection:String)->Bool {
+        if answer.contains(selection){return true}
+        func normalize(_ value:String)->String {
+            var value=value.replacingOccurrences(of:"(?m)^\\s{0,3}#{1,6}\\s+",with:"",options:.regularExpression)
+            value=value.replacingOccurrences(of:"\\[([^\\]]+)\\]\\([^)]*\\)",with:"$1",options:.regularExpression)
+            value=value.replacingOccurrences(of:"(?:\\*\\*|__|`{1,3}|~~)",with:"",options:.regularExpression)
+            return value.replacingOccurrences(of:"\\s+",with:" ",options:.regularExpression).trimmingCharacters(in:.whitespacesAndNewlines)
+        }
+        let plain=normalize(selection);return !plain.isEmpty && normalize(answer).contains(plain)
+    }
     public static func clearAccepted(_ submission: FrozenSubmission, draft: inout ReadingDraft) {
         if draft.promptRevision == submission.promptRevision && draft.prompt == submission.prompt { draft.prompt=""; draft.promptRevision += 1 }
         draft.externalQuotes.removeAll { item in submission.externalQuotes.contains(where:{$0.id == item.id && $0.revision == item.revision}) }
@@ -18,7 +28,7 @@ public enum DraftReducer {
         case "removeQuote": draft.externalQuotes.removeAll{$0.id == raw["id"]?.string}
         case "removeImage":draft.images.removeAll{$0.id == raw["id"]?.string}
         case "assistantQuote":
-            guard let turnID=raw["turnId"]?.string,let reqID=raw["requestId"]?.string,let text=raw["text"]?.string,!text.isEmpty,let turn=state.turns[turnID],turn.taskId == draft.taskId,let generation=state.generations[reqID],generation.turnId == turnID,generation.answer.contains(text) else { throw AppFault("INVALID_ARGUMENT","引用来源不属于当前回答。") }
+            guard let turnID=raw["turnId"]?.string,let reqID=raw["requestId"]?.string,let text=raw["text"]?.string,!text.isEmpty,let turn=state.turns[turnID],turn.taskId == draft.taskId,let generation=state.generations[reqID],generation.turnId == turnID,Self.containsAnswer(generation.answer,selection:text) else { throw AppFault("INVALID_ARGUMENT","引用来源不属于当前回答。") }
             draft.assistantQuote=AssistantQuote(sourceTurnId:turnID,sourceRequestId:reqID,text:text)
         case "clearAssistantQuote":if draft.assistantQuote?.id == raw["id"]?.string { draft.assistantQuote=nil }
         default: break

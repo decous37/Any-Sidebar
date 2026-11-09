@@ -14,7 +14,16 @@
     "icons": "node scripts/icons.mjs",
     "test:e2e": "playwright test",
     "audit:package": "node scripts/audit-package.mjs",
-    "package": "node scripts/package.mjs"
+    "package": "node scripts/package.mjs",
+    "typecheck:mac": "tsc --noEmit -p tsconfig.macos.json",
+    "lint:mac": "eslint apps/macos/web src/ui scripts/macos tests/macos vite.macos.config.ts vitest.macos.config.ts",
+    "test:mac:web": "vitest run --config vitest.macos.config.ts",
+    "test:mac:native": "node scripts/macos/test-native.mjs",
+    "build:mac:web": "node scripts/macos/build-web.mjs",
+    "build:mac": "node scripts/macos/build-app.mjs",
+    "audit:mac": "node scripts/macos/audit-app.mjs",
+    "package:mac": "node scripts/macos/package-app.mjs",
+    "install:mac": "node scripts/macos/install-local.mjs"
   },
   "dependencies": {
     "@mozilla/readability": "0.6.0",

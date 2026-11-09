@@ -18,6 +18,10 @@ public actor ReadingRuntime {
     public init(repository: any ReadingRepository, assets: any AttachmentStore, transport: any ModelTransport, catalog: ModelCatalog, prompt: String, changed: @escaping @Sendable (String) -> Void = {_ in}) throws {
         self.repository=repository;self.assets=assets;self.transport=transport;self.catalog=catalog;builder=ContextBuilder(prompt:prompt);self.changed=changed
         var loaded=try repository.load()
+        if loaded.preferences.shortcutDefaultVersion == nil {
+            if loaded.preferences.captureShortcut == nil {loaded.preferences.captureShortcut=ShortcutBinding(keyCode:0,modifiers:["shift"])}
+            loaded.preferences.shortcutDefaultVersion=1
+        }
         for (id,var g) in loaded.generations where g.active {
             g.status="interrupted";g.error=AppFault("NETWORK_ERROR","上次运行意外中断，未自动重发。",retryable:true);loaded.generations[id]=g
             if let restore=g.restoresRequestId { loaded.turns[g.turnId]?.displayedRequestId=restore }
@@ -54,7 +58,7 @@ public actor ReadingRuntime {
             let end=min(cursor ?? all.count,all.count),start=max(0,end-50)
             let turns=all[start..<end].compactMap{t -> TurnView? in
                 guard let g=state.generations[t.displayedRequestId] else{return nil}
-                return TurnView(id:t.id,requestId:g.id,prompt:t.submission.prompt,externalQuotes:t.submission.externalQuotes.map(ExternalQuoteView.init),images:t.submission.images.compactMap{state.assets[$0.imageId].map{ImageView($0)}},assistantQuote:t.submission.assistantQuote,answer:g.answer,reasoning:g.reasoning,status:g.status,error:g.error,canRegenerate:all.last?.id==t.id && g.status=="complete" && task.activeOperationId==nil)
+                return TurnView(id:t.id,requestId:g.id,prompt:t.submission.prompt,externalQuotes:t.submission.externalQuotes.map(ExternalQuoteView.init),images:t.submission.images.compactMap{state.assets[$0.imageId].map{ImageView($0)}},assistantQuote:t.submission.assistantQuote,answer:g.answer,reasoning:g.reasoning,status:g.status,error:g.error ?? state.generations.values.filter({$0.turnId==t.id && $0.restoresRequestId==g.id && !$0.active && $0.status != "complete"}).max(by:{$0.updatedAt < $1.updatedAt}).map({AppFault($0.error?.code ?? "CANCELLED","重新生成未完成，已保留原回答。"+($0.error?.message ?? ""),retryable:true)}),canRegenerate:all.last?.id==t.id && g.status=="complete" && task.activeOperationId==nil)
             }
             taskView=TaskView(task:task,draft:DraftView(draft,assets:state.assets),turns:turns,nextCursor:start>0 ? start:nil)
         }
@@ -157,6 +161,7 @@ public actor ReadingRuntime {
     }
     public func clearAllTasks() async throws {for t in Array(state.tasks.values){try await deleteTask(t.id,expected:t.revision)}}
     public func garbageCollect() throws {
+        try commit(state) // Recompute references after interrupted preparations before deleting files.
         let keeping=Set(state.references.map(\.imageId));try assets.removeUnreferenced(keeping:keeping)
         var next=state;next.assets=next.assets.filter{keeping.contains($0.key)};try commit(next)
     }

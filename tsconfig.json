@@ -17,7 +17,8 @@
       "chrome",
       "node",
       "vitest/globals"
-    ]
+    ],
+    "resolveJsonModule": true
   },
   "include": [
     "src",

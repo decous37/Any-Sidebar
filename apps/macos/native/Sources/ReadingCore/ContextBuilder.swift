@@ -14,7 +14,8 @@ public struct ContextBuilder: Sendable {
             parts.append(.text("[截图来源：\(source?.appName ?? "未知应用") / \(source?.documentTitle ?? "未知窗口")；仅含截取时可见内容]"))
             parts.append(.image(img))
         }
-        parts.append(.text("\n[当前用户问题]\n\(submission.prompt)"))
+        let question=submission.prompt.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty && !submission.images.isEmpty ? "请解读所附图片的主要内容，按需解释图表、公式或代码。看不清或缺少背景时请明确说明，不编造图外信息。" : submission.prompt
+        parts.append(.text("\n[当前用户问题]\n\(question)"))
         return FrozenMessage(role:"user",parts:parts)
     }
     public func build(_ submission: FrozenSubmission, state: PersistedState) -> [FrozenMessage] {

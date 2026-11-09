@@ -37,6 +37,26 @@ actor FakeTransport:ModelTransport {
         Issue.record("模拟请求没有结束")
     }
     func prompt(_ runtime:ReadingRuntime,_ text:String="问题") async throws -> (ID,Int,Int){let v=try await runtime.view(),t=v.currentTask!;try await runtime.changeDraft(taskId:t.task.id,expected:t.draft.revision,change:["kind":.string("prompt"),"text":.string(text)]);return(t.task.id,t.draft.revision+1,v.preferences.revision)}
+    @Test func defaultShortcutAndExplicitClearSurviveRestart() async throws {
+        let(r,t,repo)=try make()
+        #expect(await r.preferences().captureShortcut==ShortcutBinding(keyCode:0,modifiers:["shift"]))
+        try await r.setShortcut(nil)
+        let root=URL(fileURLWithPath:ProcessInfo.processInfo.environment["ANY_SIDEBAR_CONTRACTS"]!)
+        let reopened=try ReadingRuntime(repository:repo,assets:MemoryAssets(bytes:Data()),transport:t,catalog:ModelCatalog(data:Data(contentsOf:root.appendingPathComponent("model-capabilities.json"))),prompt:"角色")
+        #expect(await reopened.preferences().captureShortcut==nil)
+    }
+    @Test func imageOnlySubmissionIsAcceptedWithDefaultReadingInstruction() async throws {
+        let(r,t,_)=try make();let initial=try await r.view(),id=initial.currentTask!.task.id,imageID=newID()
+        let asset=ImageAsset(id:imageID,source:SourceInfo(kind:"screen-region"),width:10,height:10,byteLength:0,sha256:"test",storageKey:"images/test.png",thumbnailKey:nil)
+        try await r.attachCapture(asset,taskId:id)
+        let draft=try await r.view().currentTask!.draft
+        let requestID=try await r.send(taskId:id,expectedDraft:draft.revision,expectedPreferences:initial.preferences.revision,operationId:newID())
+        try await wait(r)
+        let state=await r.snapshot(),snapshot=state.snapshots[state.generations[requestID]!.snapshotId]!
+        #expect(snapshot.submission.prompt.isEmpty);#expect(snapshot.submission.images.count==1)
+        #expect(snapshot.messages.last!.parts.last!.text!.contains("请解读所附图片"))
+        #expect(await t.starts==1);#expect(try await r.view().currentTask!.draft.images.isEmpty)
+    }
     @Test func missingCredentialsPreservesEverything() async throws {
         let (r,t,_)=try make();await t.deny();let(id,d,p)=try await prompt(r)
         await #expect(throws:AppFault.self){try await r.send(taskId:id,expectedDraft:d,expectedPreferences:p,operationId:newID())}

@@ -1,5 +1,6 @@
 import AppKit
 import ReadingCore
+@MainActor private final class RegionWindow:NSWindow {override var canBecomeKey:Bool{true};override var canBecomeMain:Bool{false}}
 @MainActor final class RegionView: NSView {
     var start:NSPoint?,end:NSPoint?
     var selected: ((CGRect?) -> Void)?
@@ -29,7 +30,7 @@ public struct CaptureRegion: Sendable { public var displayId: CGDirectDisplayID;
         await withCheckedContinuation { continuation in
             self.continuation=continuation
             for screen in NSScreen.screens {
-                let window=NSWindow(contentRect:screen.frame,styleMask:.borderless,backing:.buffered,defer:false)
+                let window=RegionWindow(contentRect:screen.frame,styleMask:.borderless,backing:.buffered,defer:false)
                 window.level = .screenSaver;window.backgroundColor = .clear;window.isOpaque=false;window.collectionBehavior=[.canJoinAllSpaces,.fullScreenAuxiliary]
                 let view=RegionView(frame:CGRect(origin:.zero,size:screen.frame.size))
                 view.selected={[weak self] rect in self?.finish(rect.flatMap{r in (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID).map{CaptureRegion(displayId:$0,rect:r,screenHeight:screen.frame.height,scale:screen.backingScaleFactor)}})}

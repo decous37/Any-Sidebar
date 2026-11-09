@@ -17,7 +17,7 @@ public struct URLSessionClient: Sendable {
         guard http.statusCode==200 else{throw SSEDecoder.httpFault(http.statusCode)}
         guard http.value(forHTTPHeaderField:"Content-Type")?.lowercased().contains("text/event-stream")==true else{throw AppFault("API_BAD_RESPONSE","服务未返回流式回答。")}
         var decoder=SSEDecoder()
-        for try await line in bytes.lines {try Task.checkCancellation();for delta in try decoder.line(line) {continuation.yield(delta)}}
-        for delta in try decoder.line("") {continuation.yield(delta)}
+        for try await byte in bytes {try Task.checkCancellation();for delta in try decoder.feed(byte) {continuation.yield(delta)}}
+        for delta in try decoder.finish() {continuation.yield(delta)}
     }
 }

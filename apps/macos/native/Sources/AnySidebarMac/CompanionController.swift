@@ -1,6 +1,9 @@
 import AppKit
 @MainActor private final class CompanionView:NSView {
     var opened:(() -> Void)?;var capture:(() -> Void)?;var hasReference=false {didSet{needsDisplay=true}}
+    override init(frame:NSRect){super.init(frame:frame);setAccessibilityElement(true);setAccessibilityRole(.button);setAccessibilityLabel("Any Sidebar 小助手");setAccessibilityHelp("点击展开或收起对话；拖动改变位置；右键读屏。")}
+    required init?(coder:NSCoder){fatalError("init(coder:) is not supported")}
+    override func accessibilityPerformPress()->Bool{opened?();return true}
     private var origin:NSPoint?,windowOrigin:NSPoint?
     override func draw(_ dirtyRect:NSRect) {
         let rect=bounds.insetBy(dx:3,dy:3)
@@ -18,7 +21,7 @@ import AppKit
 }
 @MainActor final class CompanionController:NSObject {
     let window:NSPanel;let status:NSStatusItem;private let view=CompanionView(frame:NSRect(x:0,y:0,width:56,height:56))
-    var opened:(() -> Void)?;var captured:(() -> Void)?;var quit:(() -> Void)?
+    var opened:(() -> Void)?;var captured:(() -> Void)?;var quit:(() -> Void)?;var visibilityChanged:((Bool)->Void)?
     override init(){
         window=NSPanel(contentRect:NSRect(x:100,y:100,width:56,height:56),styleMask:[.borderless,.nonactivatingPanel],backing:.buffered,defer:false)
         status=NSStatusBar.system.statusItem(withLength:NSStatusItem.squareLength)
@@ -40,6 +43,6 @@ import AppKit
     func reference(_ has:Bool){view.hasReference=has}
     @objc private func openPanel(){opened?()}
     @objc private func capture(){captured?()}
-    @objc private func toggle(){show(!window.isVisible)}
+    @objc private func toggle(){let visible = !window.isVisible;if let visibilityChanged{visibilityChanged(visible)}else{show(visible)}}
     @objc private func exitApp(){quit?()}
 }

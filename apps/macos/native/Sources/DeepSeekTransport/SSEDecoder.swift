@@ -2,7 +2,29 @@ import Foundation
 import ReadingCore
 public struct SSEDecoder: Sendable {
     private var lines:[String]=[]
+    private var pendingLine:[UInt8]=[]
+    private var skipLF=false
     public init() {}
+    /// AsyncLineSequence drops blank lines, which are SSE frame boundaries. Consume raw bytes instead.
+    public mutating func feed(_ byte:UInt8) throws -> [StreamDelta] {
+        if skipLF {skipLF=false;if byte==10{return []}}
+        if byte==10 || byte==13 {
+            skipLF=byte==13
+            guard let text=String(bytes:pendingLine,encoding:.utf8) else{throw AppFault("API_BAD_RESPONSE","服务返回了无效的文字编码。",retryable:true)}
+            pendingLine.removeAll(keepingCapacity:true)
+            return try line(text)
+        }
+        guard pendingLine.count<2*1024*1024 else{throw AppFault("API_BAD_RESPONSE","单条流式数据过大，请稍后重试。",retryable:true)}
+        pendingLine.append(byte);return []
+    }
+    public mutating func finish() throws -> [StreamDelta] {
+        var output:[StreamDelta]=[]
+        if !pendingLine.isEmpty {
+            guard let text=String(bytes:pendingLine,encoding:.utf8) else{throw AppFault("API_BAD_RESPONSE","服务返回了无效的文字编码。",retryable:true)}
+            pendingLine=[];output += try line(text)
+        }
+        output += try line("");return output
+    }
     public mutating func line(_ line: String) throws -> [StreamDelta] {
         if !line.isEmpty {if line.hasPrefix("data:"){lines.append(String(line.dropFirst(5)).trimmingCharacters(in:.whitespaces))};return []}
         guard !lines.isEmpty else{return []};let text=lines.joined(separator:"\n");lines=[]

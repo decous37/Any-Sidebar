@@ -15,8 +15,11 @@ public final class AccessibilitySelectionService: @unchecked Sendable {
     private var source=SourceInfo(kind:"external-selection")
     private var lease=newID(),sequence=0
     private var route:(ID,Int)?
+    private var sourceFocused=false
     private var enabled=false
     private var activePID:pid_t?
+    private var lastDocument:String?
+    private var lastWindow:AXUIElement?
     private var lastText:String?
     private var lastToken:ID?
     private var lastQuote:ID?
@@ -30,10 +33,11 @@ public final class AccessibilitySelectionService: @unchecked Sendable {
         queue.async {self.enabled=enabled;self.route=taskId.map{($0,epoch)};if !enabled{self.detach()}}
     }
     @MainActor public func activate(_ app: NSRunningApplication) {
-        guard app.bundleIdentifier != Bundle.main.bundleIdentifier else{return}
+        guard app.bundleIdentifier != Bundle.main.bundleIdentifier else{queue.async{self.sourceFocused=false};return}
         let pid=app.processIdentifier,bundle=app.bundleIdentifier,name=app.localizedName
         queue.async {
             guard self.enabled else{return}
+            self.sourceFocused=true
             guard self.activePID != pid else{return}
             self.detach();self.activePID=pid;self.lease=newID();self.sequence=0;self.lastText=nil;self.lastToken=nil;self.lastQuote=nil
             let element=AXUIElementCreateApplication(pid);AXUIElementSetMessagingTimeout(element,0.2);self.app=element
@@ -76,7 +80,7 @@ public final class AccessibilitySelectionService: @unchecked Sendable {
     }
     public func acknowledge(token: ID, quoteId: ID?) {queue.async {if self.lastToken==token{self.lastQuote=quoteId}}}
     private func read(route: (ID,Int)) {
-        guard enabled,AXIsProcessTrusted(),let app else{status("permission");return}
+        guard enabled,sourceFocused,AXIsProcessTrusted(),let app else{status("permission");return}
         observeFocused()
         guard let window=element(attribute(app,kAXFocusedWindowAttribute)) else{status("unsupported");return}
         let title=attribute(window,kAXTitleAttribute) as? String
@@ -96,16 +100,16 @@ public final class AccessibilitySelectionService: @unchecked Sendable {
             if let children=attribute(node,kAXChildrenAttribute) as? [AXUIElement] {nodes.append(contentsOf:children.prefix(120-count))}
         }
         guard let text=found else{status("unsupported");return}
-        guard text != lastText else{return}
+        guard text != lastText || document != lastDocument || lastWindow.map({!CFEqual($0,window)}) == true else{return}
         // A task switch alone must not import an old selection; only a new observed selection is routed.
         lastText=text;sequence += 1
         if text.isEmpty {
-            if let token=lastToken,let quote=lastQuote,let previous=lastRoute {
+            if document==lastDocument,let lastWindow,CFEqual(lastWindow,window),let token=lastToken,let quote=lastQuote,let previous=lastRoute {
                 receive(SelectionEvent(taskId:previous.0,routingEpoch:previous.1,sourceLeaseId:lease,sourceSequence:sequence,outcome:.cleared(token:token,expectedQuoteId:quote)))
             }
         } else {
             var source=self.source;source.documentTitle=title;source.documentIdentity=document;source.capturedAt=now()
-            let token=newID();lastToken=token;lastRoute=route;lastQuote=nil
+            let token=newID();lastToken=token;lastRoute=route;lastQuote=nil;lastDocument=document;lastWindow=window
             receive(SelectionEvent(taskId:route.0,routingEpoch:route.1,sourceLeaseId:lease,sourceSequence:sequence,outcome:.selected(token:token,source:source,text:text)))
             status("selected")
         }

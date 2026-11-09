@@ -37,6 +37,12 @@ struct MemoryAssets: AttachmentStore {
         let sub=try FrozenSubmission(draft:ReadingDraft(taskId:newID()),assets:[:])
         #expect(throws:AppFault.self){try BudgetValidator.encode(messages:[FrozenMessage(role:"system",parts:[.image(part)])],submission:sub,options:cat.resolve(prefs),model:cat.model(prefs.modelId),assets:[id:asset],store:MemoryAssets(bytes:data))}
     }
+    @Test func formattedAnswerSelectionsKeepSourceValidation() {
+        #expect(DraftReducer.containsAnswer("**缓存** 保存结果。",selection:"缓存 保存结果。"))
+        #expect(!DraftReducer.containsAnswer("**缓存** 保存结果。",selection:"另一个不存在的结论"))
+        #expect(DraftReducer.containsAnswer("`a != b` 是比较。",selection:"a != b"))
+        #expect(!DraftReducer.containsAnswer("`a != b` 是比较。",selection:"a == b"))
+    }
     @Test func sharedBridgeCases() throws {
         let root=URL(fileURLWithPath:ProcessInfo.processInfo.environment["ANY_SIDEBAR_CONTRACTS"]!)
         let schema=try CommandSchema(data:Data(contentsOf:root.appendingPathComponent("bridge.schema.json")))

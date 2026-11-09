@@ -11,5 +11,7 @@ let package = Package(name: "AnySidebarMac", platforms: [.macOS(.v14)], products
     .target(name: "MacServices", dependencies: ["ReadingCore"]),
     .executableTarget(name: "AnySidebarMac", dependencies: ["ReadingCore","ReadingStorage","MacServices","DeepSeekTransport"]),
     .testTarget(name: "ReadingCoreTests", dependencies: ["ReadingCore"]),
-    .testTarget(name: "ReadingStorageTests", dependencies: ["ReadingStorage"])
+    .testTarget(name: "ReadingStorageTests", dependencies: ["ReadingStorage","ReadingCore"]),
+    .testTarget(name: "DeepSeekTransportTests", dependencies: ["DeepSeekTransport","ReadingCore"]),
+    .testTarget(name: "MacServicesTests", dependencies: ["MacServices","ReadingCore"]),
 ])
