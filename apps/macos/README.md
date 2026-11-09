@@ -1,6 +1,8 @@
 # Any Sidebar for Mac
 
-一个留在桌边的阅读小助手。沿用浏览器版的聊天界面，用划词和手动截图辅助阅读本地资料。
+一个用于本地阅读的 macOS AI 侧边栏。沿用浏览器版的对话设计，支持划词引用与手动读屏。
+
+Mac 版现独立维护于 [Any Sidebar for Mac](https://github.com/decous37/Any-Sidebar-for-Mac)，最新源码和文档请以该仓库为准。
 
 当前版本 **0.1.0**，是本机开发版。目标为 **Apple Silicon、macOS 14+**；尚未完成 Developer ID 签名、公证和最低系统实机验证。
 
