@@ -51,6 +51,9 @@ import DeepSeekTransport
         companion.opened={[weak self] in guard let self else{return};self.panel.toggle(near:self.companion.window.frame)}
         companion.visibilityChanged={[weak self] visible in Task{guard let self else{return};do{try await self.runtime.companionVisible(visible);self.companion.show(visible)}catch{self.runtimeError=AppFault.storage}}}
         companion.captured={[weak self] in Task{await self?.captureCurrent()}}
+        companion.windowCaptured={[weak self] in Task{await self?.captureCurrent(mode:"window")}}
+        companion.panelVisible={[weak self] in self?.panel.panel.isVisible ?? false}
+        companion.settingsOpened={[weak self] in guard let self else{return};self.panel.show(near:self.companion.window.frame);self.panel.bridge.event("open-settings")}
         companion.quit={NSApp.terminate(nil)}
         selection.receive={[weak self] event in Task{@MainActor in
             guard let self else{return}
@@ -90,10 +93,10 @@ import DeepSeekTransport
         // No await between ephemeral state and its revision: earlier replies cannot replace a later candidate.
         return .object(["runtime":try .encode(view),"permissions":try .encode(permissionState),"systemRevision":.number(Double(systemRevision)),"credential":credentialCache!,"shortcutState":.string(shortcut.state),"panelShortcutState":.string(panelShortcut.state),"recordingKind":.string(recordingKind),"recordingOperationId":recordingOperation.map(JSONValue.string) ?? .null,"recordedShortcut":try .encode(recordedShortcut),"captureOperationId":captureOperation.map(JSONValue.string) ?? .null,"captureError":try .encode(captureError),"selectionStatus":.string(selectionStatus),"appFault":try .encode(runtimeError)])
     }
-    func captureCurrent() async {
+    func captureCurrent(mode:String="region") async {
         if let operation=captureOperation {cancelCapture(operation);return}
         if let id=(await runtime.route()).0 {
-            do{try await startCapture(taskId:id,mode:"region",operationId:newID())}
+            do{try await startCapture(taskId:id,mode:mode,operationId:newID())}
             catch{captureError=(error as? AppFault);notifySystem("capture-changed");panel.show(near:companion.window.frame)}
         }
     }
@@ -181,6 +184,7 @@ import DeepSeekTransport
             case "deleteTask":try await runtime.deleteTask(str("taskId"),expected:int("expectedRevision"))
             case "clearAllTasks":try await runtime.clearAllTasks()
             case "setCompanionVisible":let visible=a["visible"]!.bool!;try await runtime.companionVisible(visible);companion.show(visible)
+            case "hidePanel":panel.hide()
             case "copyText":NSPasteboard.general.clearContents();guard NSPasteboard.general.setString(str("text"),forType:.string) else{throw AppFault("COPY_FAILED","复制失败，请重试。")}
             default:throw AppFault("INVALID_ARGUMENT","未知操作。")
             }

@@ -1,7 +1,7 @@
 import AppKit
 @MainActor private final class CompanionView:NSView {
-    var opened:(() -> Void)?;var capture:(() -> Void)?;var hasReference=false {didSet{needsDisplay=true}}
-    override init(frame:NSRect){super.init(frame:frame);setAccessibilityElement(true);setAccessibilityRole(.button);setAccessibilityLabel("Any Sidebar 小助手");setAccessibilityHelp("点击展开或收起对话；拖动改变位置；右键读屏。")}
+    var opened:(() -> Void)?;var contextMenu:(() -> NSMenu)?;var hasReference=false {didSet{needsDisplay=true}}
+    override init(frame:NSRect){super.init(frame:frame);setAccessibilityElement(true);setAccessibilityRole(.button);setAccessibilityLabel("Any Sidebar 小助手");setAccessibilityHelp("点击展开或收起对话；拖动改变位置；右键打开菜单。")}
     required init?(coder:NSCoder){fatalError("init(coder:) is not supported")}
     override func accessibilityPerformPress()->Bool{opened?();return true}
     private var origin:NSPoint?,windowOrigin:NSPoint?
@@ -16,23 +16,33 @@ import AppKit
     override func mouseDown(with event:NSEvent){origin=NSEvent.mouseLocation;windowOrigin=window?.frame.origin}
     override func mouseDragged(with event:NSEvent){guard let origin,let windowOrigin else{return};let p=NSEvent.mouseLocation;window?.setFrameOrigin(NSPoint(x:windowOrigin.x+p.x-origin.x,y:windowOrigin.y+p.y-origin.y))}
     override func mouseUp(with event:NSEvent){guard let origin else{return};let p=NSEvent.mouseLocation;if hypot(p.x-origin.x,p.y-origin.y)<4{opened?()};if let window{UserDefaults.standard.set(NSStringFromPoint(window.frame.origin),forKey:"companionPosition")}}
-    override func rightMouseDown(with event:NSEvent){let menu=NSMenu();let item=NSMenuItem(title:"框选读屏",action:#selector(readScreen),keyEquivalent:"");item.target=self;menu.addItem(item);NSMenu.popUpContextMenu(menu,with:event,for:self)}
-    @objc private func readScreen(){capture?()}
+    override func rightMouseDown(with event:NSEvent){guard let menu=contextMenu?() else{return};NSMenu.popUpContextMenu(menu,with:event,for:self)}
 }
-@MainActor final class CompanionController:NSObject {
+@MainActor final class CompanionController:NSObject,NSMenuDelegate {
     let window:NSPanel;let status:NSStatusItem;private let view=CompanionView(frame:NSRect(x:0,y:0,width:56,height:56))
-    var opened:(() -> Void)?;var captured:(() -> Void)?;var quit:(() -> Void)?;var visibilityChanged:((Bool)->Void)?
+    var opened:(() -> Void)?;var captured:(() -> Void)?;var windowCaptured:(() -> Void)?;var settingsOpened:(() -> Void)?;var panelVisible:(() -> Bool)?;var quit:(() -> Void)?;var visibilityChanged:((Bool)->Void)?
     override init(){
         window=NSPanel(contentRect:NSRect(x:100,y:100,width:56,height:56),styleMask:[.borderless,.nonactivatingPanel],backing:.buffered,defer:false)
         status=NSStatusBar.system.statusItem(withLength:NSStatusItem.squareLength)
         super.init()
         window.isOpaque=false;window.backgroundColor = .clear;window.hasShadow=true;window.level = .floating;window.hidesOnDeactivate=false;window.collectionBehavior=[.canJoinAllSpaces,.fullScreenAuxiliary];window.contentView=view
-        view.opened={[weak self] in self?.opened?()};view.capture={[weak self] in self?.captured?()}
+        view.opened={[weak self] in self?.opened?()};view.contextMenu={[weak self] in self?.makeMenu() ?? NSMenu()}
         status.button?.image=NSImage(systemSymbolName:"sidebar.right",accessibilityDescription:"Any Sidebar")
-        let menu=NSMenu()
-        for (title,action) in [("打开对话",#selector(openPanel)),("框选读屏",#selector(capture)),("显示／隐藏小助手",#selector(toggle)),("退出",#selector(exitApp))] {let item=NSMenuItem(title:title,action:action,keyEquivalent:"");item.target=self;menu.addItem(item)}
-        status.menu=menu
+        status.menu=makeMenu()
         place();NotificationCenter.default.addObserver(self,selector:#selector(place),name:NSApplication.didChangeScreenParametersNotification,object:nil)
+    }
+    private func makeMenu()->NSMenu {
+        let menu=NSMenu();menu.delegate=self
+        for (title,action,tag) in [("展开对话",#selector(openPanel),1),("框选读屏",#selector(capture),0),("窗口读屏",#selector(captureWindow),0),("设置…",#selector(openSettings),0),("隐藏小助手",#selector(toggle),2)] {
+            let item=NSMenuItem(title:title,action:action,keyEquivalent:"");item.target=self;item.tag=tag;menu.addItem(item)
+        }
+        menu.addItem(.separator())
+        let quitItem=NSMenuItem(title:"退出 Any Sidebar",action:#selector(exitApp),keyEquivalent:"");quitItem.target=self;menu.addItem(quitItem)
+        return menu
+    }
+    func menuWillOpen(_ menu:NSMenu) {
+        menu.item(withTag:1)?.title=panelVisible?()==true ? "收起对话":"展开对话"
+        menu.item(withTag:2)?.title=window.isVisible ? "隐藏小助手":"显示小助手"
     }
     @objc func place(){
         let stored=UserDefaults.standard.string(forKey:"companionPosition").map(NSPointFromString) ?? NSPoint(x:(NSScreen.main?.visibleFrame.maxX ?? 1100)-90,y:180)
@@ -43,6 +53,8 @@ import AppKit
     func reference(_ has:Bool){view.hasReference=has}
     @objc private func openPanel(){opened?()}
     @objc private func capture(){captured?()}
+    @objc private func captureWindow(){windowCaptured?()}
+    @objc private func openSettings(){settingsOpened?()}
     @objc private func toggle(){let visible = !window.isVisible;if let visibilityChanged{visibilityChanged(visible)}else{show(visible)}}
     @objc private func exitApp(){quit?()}
 }

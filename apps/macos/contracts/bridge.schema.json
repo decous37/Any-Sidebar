@@ -180,6 +180,10 @@
         "text": "string"
       },
       "optional": {}
+    },
+    "hidePanel": {
+      "required": {},
+      "optional": {}
     }
   }
 }
